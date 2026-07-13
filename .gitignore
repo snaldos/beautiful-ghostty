@@ -1,0 +1,15 @@
+# Generated shader outputs and runtime state
+shaders/.shader-selection
+shaders/custom_background.glsl
+shaders/custom_combined.glsl
+shaders/custom_cursor.glsl
+
+# Temporary files
+shaders/*.tmp.*
+shaders/*.body.*
+
+# Editors and operating systems
+.DS_Store
+*.swp
+*.swo
+*~
