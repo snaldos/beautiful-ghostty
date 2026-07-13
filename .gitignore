@@ -13,3 +13,6 @@ shaders/*.body.*
 *.swp
 *.swo
 *~
+
+# GitHub-hosted full demo video
+assets/demo-web.mp4
