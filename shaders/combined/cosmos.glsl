@@ -169,6 +169,7 @@
 
 #define SPACE_STAR_LAYERS PERF_STAR_LAYERS
 #define SPACE_STAR_GRID_DENSITY 20.0
+#define SPACE_STAR_REFERENCE_HEIGHT_PX 1440.0
 #define SPACE_STAR_DENSITY 0.050
 #define SPACE_STAR_TRAVEL_SPEED 0.085
 #define SPACE_STAR_TRAVEL_CENTER vec2(0.50, 0.50)
@@ -847,12 +848,19 @@ vec3 renderPerspectiveStarLayer(
     vec2 screenPoint = (uv - SPACE_STAR_TRAVEL_CENTER)
         * vec2(aspect, 1.0);
 
+    // Star sizes and halos are measured in pixels. Scale the normalized grid
+    // with viewport height as well, keeping cell spacing, overlap, and apparent
+    // brightness stable instead of crowding stars into short viewports.
+    float gridDensity = SPACE_STAR_GRID_DENSITY
+        * resolution.y
+        / max(SPACE_STAR_REFERENCE_HEIGHT_PX, 1.0);
+
     // A point in the star plane projects as screen = world / depth.
     // Sampling world = screen * depth therefore makes the field expand
     // outward while the depth decreases.
     vec2 planePoint = screenPoint
         * depth
-        * SPACE_STAR_GRID_DENSITY;
+        * gridDensity;
 
     vec2 layerSeed = vec2(
         layerIndex * 71.17 + generation * 19.73,
@@ -868,7 +876,7 @@ vec3 renderPerspectiveStarLayer(
     // One plane-space cell occupies this many screen pixels at the current
     // depth. This keeps the star core smoothly round at every distance.
     float pixelsPerCell = resolution.y / max(
-        depth * SPACE_STAR_GRID_DENSITY,
+        depth * gridDensity,
         0.0001
     );
 

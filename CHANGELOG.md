@@ -1,12 +1,11 @@
 # Changelog
 
-## 1.0.1 — 2026-07-15
-
-- Prevent bright perspective-star halos and streaks from exposing square cell
-  boundaries when Ghostty uses a short viewport.
-
 ## 1.0.0 — 2026-07-15
 
+- Keep perspective-star spacing and halo appearance stable across viewport
+  heights.
+- Prevent bright perspective-star halos and streaks from exposing square cell
+  boundaries in short Ghostty windows.
 - Install durable shader sources under the user data directory, independent of
   the Git clone.
 - Expose the `beautiful-ghostty` command under `~/.local/bin`.

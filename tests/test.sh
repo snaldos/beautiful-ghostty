@@ -86,7 +86,7 @@ assert_file "$INSTALL_DIR/shaders/background/cosmos.glsl"
 assert_file "$INSTALL_DIR/shaders/combined/cosmos.glsl"
 assert_file "$INSTALL_DIR/shaders/cursor/cosmic.glsl"
 assert_file "$COMMAND"
-[[ "$(HOME="$TEST_HOME" "$COMMAND" --version)" == 'Beautiful Ghostty 1.0.1' ]]
+[[ "$(HOME="$TEST_HOME" "$COMMAND" --version)" == 'Beautiful Ghostty 1.0.0' ]]
 assert_file "$RUNTIME/state"
 assert_file "$RUNTIME/active.ghostty"
 [[ "$(grep -Fc '# BEGIN beautiful-ghostty' "$CONFIG")" == 1 ]]
