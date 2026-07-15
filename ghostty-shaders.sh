@@ -3,57 +3,42 @@
 set -Eeuo pipefail
 
 # =============================================================================
-# Ghostty shader manager
+# Beautiful Ghostty shader manager
 # =============================================================================
 #
-# UI-independent backend for selecting cursor, background, and combined Ghostty
-# shaders and materializing a compile-time GPU profile into the active files.
+# The repository and installed data contain only durable shader sources. Active
+# state is generated under the selected Ghostty configuration directory:
 #
-# It intentionally has no Fuzzel, Rofi, Hyprland, or notification dependency.
-# A desktop-specific launcher can call this script with command-line arguments.
+#   beautiful-ghostty/
+#   ├── active.ghostty
+#   ├── generated/*.glsl
+#   └── state
 #
-# Expected layout beside this script:
-#
-#   shaders.ghostty
-#   shaders/
-#   ├── background/*.glsl
-#   ├── combined/*.glsl
-#   ├── cursor/*.glsl
-#   ├── custom_background.glsl
-#   ├── custom_combined.glsl
-#   └── custom_cursor.glsl
-#
-# Recommended dedicated shaders.ghostty file beside this script:
-#
-#   custom-shader = shaders/custom_background.glsl
-#   custom-shader = shaders/custom_cursor.glsl
-#   custom-shader = shaders/custom_combined.glsl
-#   custom-shader-animation = true
-#
-# Include it once from the main Ghostty config:
-#
-#   config-file = ?"/path/to/beautiful-ghostty/shaders.ghostty"
+# Generated shaders use content-addressed filenames. A real shader or GPU-profile
+# change therefore changes Ghostty's configured path and forces recompilation.
+# The manager is UI-independent and has no Fuzzel, Rofi, or Hyprland dependency.
 #
 # Commands:
 #
-#   ghostty-shaders.sh list cursor|background|combined|profiles
-#   ghostty-shaders.sh current cursor|background|combined
-#   ghostty-shaders.sh mode
-#   ghostty-shaders.sh profile
-#   ghostty-shaders.sh status
-#   ghostty-shaders.sh set cursor|background|combined NAME|none
-#   ghostty-shaders.sh set-profile eco|balanced|quality|ultra
-#   ghostty-shaders.sh reload
-#   ghostty-shaders.sh validate
+#   beautiful-ghostty list cursor|background|combined|profiles
+#   beautiful-ghostty current cursor|background|combined
+#   beautiful-ghostty mode
+#   beautiful-ghostty profile
+#   beautiful-ghostty status
+#   beautiful-ghostty set cursor|background|combined NAME|none
+#   beautiful-ghostty set-profile eco|balanced|quality|ultra
+#   beautiful-ghostty apply
+#   beautiful-ghostty reload
+#   beautiful-ghostty validate
+#   beautiful-ghostty --version
 #
 # Global option:
 #
-#   --no-reload   Update files without reloading running Ghostty instances.
+#   --no-reload   Update generated state without signalling Ghostty.
 #
-# Environment overrides:
+# Environment override:
 #
-#   GHOSTTY_CONFIG       Exact Ghostty config used by `validate`.
-#   GHOSTTY_CONFIG_DIR   Directory searched for config.ghostty or legacy config.
+#   GHOSTTY_CONFIG   Exact Ghostty config used for runtime state and validation.
 #
 # =============================================================================
 
@@ -62,42 +47,21 @@ SCRIPT_DIR="${SCRIPT_PATH%/*}"
 [[ "$SCRIPT_DIR" == "$SCRIPT_PATH" ]] && SCRIPT_DIR="."
 SCRIPT_DIR="$(cd -- "$SCRIPT_DIR" && pwd -P)"
 
-# Shader sources and generated files always live beside this script, regardless
-# of where the repository was cloned.
 SHADERS_DIR="$SCRIPT_DIR/shaders"
+VERSION_FILE="$SCRIPT_DIR/VERSION"
+GHOSTTY_CONFIG="${GHOSTTY_CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/ghostty/config.ghostty}"
+GHOSTTY_CONFIG="${GHOSTTY_CONFIG/#\~/$HOME}"
+[[ "$GHOSTTY_CONFIG" == /* ]] || GHOSTTY_CONFIG="$PWD/$GHOSTTY_CONFIG"
+CONFIG_DIR="${GHOSTTY_CONFIG%/*}"
+[[ "$CONFIG_DIR" != "$GHOSTTY_CONFIG" ]] || CONFIG_DIR="."
+RUNTIME_DIR="$CONFIG_DIR/beautiful-ghostty"
 
-resolve_default_config() {
-  local config_dir
-
-  config_dir="${GHOSTTY_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/ghostty}"
-  config_dir="${config_dir/#\~/$HOME}"
-
-  if [[ -f "$config_dir/config.ghostty" ]]; then
-    printf '%s' "$config_dir/config.ghostty"
-  elif [[ -f "$config_dir/config" ]]; then
-    printf '%s' "$config_dir/config"
-  else
-    printf '%s' "$config_dir/config.ghostty"
-  fi
-}
-
-if [[ -n "${GHOSTTY_CONFIG:-}" ]]; then
-  GHOSTTY_CONFIG="${GHOSTTY_CONFIG/#\~/$HOME}"
-else
-  GHOSTTY_CONFIG="$(resolve_default_config)"
-fi
 CURSOR_DIR="$SHADERS_DIR/cursor"
 BACKGROUND_DIR="$SHADERS_DIR/background"
 COMBINED_DIR="$SHADERS_DIR/combined"
-
-CUSTOM_CURSOR="$SHADERS_DIR/custom_cursor.glsl"
-CUSTOM_BACKGROUND="$SHADERS_DIR/custom_background.glsl"
-CUSTOM_COMBINED="$SHADERS_DIR/custom_combined.glsl"
-STATE_FILE="$SHADERS_DIR/.shader-selection"
-
-NOOP_MARKER="ghostty-theme-script:no-op"
-SOURCE_MARKER="// ghostty-theme-script:source="
-PROFILE_MARKER="// ghostty-theme-script:gpu-profile="
+GENERATED_DIR="$RUNTIME_DIR/generated"
+ACTIVE_CONFIG="$RUNTIME_DIR/active.ghostty"
+STATE_FILE="$RUNTIME_DIR/state"
 
 CURSOR_SELECTION=""
 BACKGROUND_SELECTION=""
@@ -107,21 +71,24 @@ CURSOR_ENABLED=0
 BACKGROUND_ENABLED=0
 COMBINED_ENABLED=0
 GPU_PROFILE="quality"
+ACTIVE_SHADER_PATHS=()
 
 NO_RELOAD=0
 
 usage() {
   cat <<'USAGE'
 Usage:
-  ghostty-shaders.sh [--no-reload] list cursor|background|combined|profiles
-  ghostty-shaders.sh [--no-reload] current cursor|background|combined
-  ghostty-shaders.sh [--no-reload] mode
-  ghostty-shaders.sh [--no-reload] profile
-  ghostty-shaders.sh [--no-reload] status
-  ghostty-shaders.sh [--no-reload] set cursor|background|combined NAME|none
-  ghostty-shaders.sh [--no-reload] set-profile eco|balanced|quality|ultra
-  ghostty-shaders.sh reload
-  ghostty-shaders.sh validate
+  beautiful-ghostty [--no-reload] list cursor|background|combined|profiles
+  beautiful-ghostty [--no-reload] current cursor|background|combined
+  beautiful-ghostty [--no-reload] mode
+  beautiful-ghostty [--no-reload] profile
+  beautiful-ghostty [--no-reload] status
+  beautiful-ghostty [--no-reload] set cursor|background|combined NAME|none
+  beautiful-ghostty [--no-reload] set-profile eco|balanced|quality|ultra
+  beautiful-ghostty [--no-reload] apply
+  beautiful-ghostty reload
+  beautiful-ghostty validate
+  beautiful-ghostty --version
 
 Shader modes:
   - Separate: cursor and background stages are configured independently.
@@ -142,11 +109,17 @@ warn() {
   printf 'Warning: %s\n' "$*" >&2
 }
 
+print_version() {
+  [[ -f "$VERSION_FILE" ]] || fail "missing VERSION file: $VERSION_FILE"
+  printf 'Beautiful Ghostty %s\n' "$(<"$VERSION_FILE")"
+}
+
 ensure_layout() {
   [[ -d "$SHADERS_DIR" ]] || fail "missing shader directory: $SHADERS_DIR"
   [[ -d "$CURSOR_DIR" ]] || fail "missing cursor directory: $CURSOR_DIR"
   [[ -d "$BACKGROUND_DIR" ]] || fail "missing background directory: $BACKGROUND_DIR"
   [[ -d "$COMBINED_DIR" ]] || fail "missing combined directory: $COMBINED_DIR"
+  command -v sha256sum >/dev/null 2>&1 || fail "sha256sum is required"
 }
 
 normalize_boolean() {
@@ -218,111 +191,10 @@ shader_mode_display_name() {
   esac
 }
 
-is_noop_shader() {
-  local target="$1"
-  local line
-
-  [[ -f "$target" ]] || return 1
-
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    [[ "$line" == *"$NOOP_MARKER"* ]] && return 0
-  done <"$target"
-
-  return 1
-}
-
-marker_value() {
-  local target="$1"
-  local prefix="$2"
-  local line
-
-  [[ -f "$target" ]] || return 0
-
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    if [[ "$line" == "$prefix"* ]]; then
-      printf '%s' "${line#"$prefix"}"
-      return 0
-    fi
-  done <"$target"
-}
-
-selection_from_target() {
-  local target="$1"
-  local kind="$2"
-  local directory="$3"
-  local marker selection file
-
-  marker="$(marker_value "$target" "$SOURCE_MARKER")"
-
-  case "$marker" in
-  "$kind/"*.glsl)
-    selection="${marker#"$kind/"}"
-    if valid_shader_filename "$selection" && [[ -f "$directory/$selection" ]]; then
-      printf '%s' "$selection"
-      return 0
-    fi
-    ;;
-  esac
-
-  # Compatibility with old, unprofiled copies when cmp is available.
-  if command -v cmp >/dev/null 2>&1 && [[ -f "$target" ]] && ! is_noop_shader "$target"; then
-    shopt -s nullglob
-    for file in "$directory"/*.glsl; do
-      if cmp -s -- "$file" "$target"; then
-        printf '%s' "${file##*/}"
-        shopt -u nullglob
-        return 0
-      fi
-    done
-    shopt -u nullglob
-  fi
-}
-
-detect_profile_from_targets() {
-  local target profile
-
-  for target in "$CUSTOM_COMBINED" "$CUSTOM_BACKGROUND" "$CUSTOM_CURSOR"; do
-    profile="$(marker_value "$target" "$PROFILE_MARKER")"
-    if valid_profile "$profile"; then
-      printf '%s' "$profile"
-      return 0
-    fi
-  done
-
-  printf 'quality'
-}
-
-bootstrap_state() {
-  CURSOR_SELECTION="$(selection_from_target "$CUSTOM_CURSOR" cursor "$CURSOR_DIR")"
-  BACKGROUND_SELECTION="$(selection_from_target "$CUSTOM_BACKGROUND" background "$BACKGROUND_DIR")"
-  COMBINED_SELECTION="$(selection_from_target "$CUSTOM_COMBINED" combined "$COMBINED_DIR")"
-  GPU_PROFILE="$(detect_profile_from_targets)"
-
-  CURSOR_ENABLED=0
-  BACKGROUND_ENABLED=0
-  COMBINED_ENABLED=0
-
-  if [[ -n "$COMBINED_SELECTION" ]] && [[ -f "$CUSTOM_COMBINED" ]] && ! is_noop_shader "$CUSTOM_COMBINED"; then
-    COMBINED_ENABLED=1
-    return
-  fi
-
-  if [[ -n "$CURSOR_SELECTION" ]] && [[ -f "$CUSTOM_CURSOR" ]] && ! is_noop_shader "$CUSTOM_CURSOR"; then
-    CURSOR_ENABLED=1
-  fi
-
-  if [[ -n "$BACKGROUND_SELECTION" ]] && [[ -f "$CUSTOM_BACKGROUND" ]] && ! is_noop_shader "$CUSTOM_BACKGROUND"; then
-    BACKGROUND_ENABLED=1
-  fi
-}
-
 load_state() {
   local key value
 
-  if [[ ! -f "$STATE_FILE" ]]; then
-    bootstrap_state
-    return
-  fi
+  [[ -f "$STATE_FILE" ]] || return 0
 
   while IFS='=' read -r key value || [[ -n "$key" ]]; do
     case "$key" in
@@ -370,7 +242,7 @@ load_state() {
 save_state() {
   local temporary
 
-  mkdir -p -- "$SHADERS_DIR"
+  mkdir -p -- "$RUNTIME_DIR"
   temporary="$(mktemp "${STATE_FILE}.tmp.XXXXXX")"
 
   {
@@ -452,50 +324,11 @@ profile_summary() {
     "$GPU_CURSOR_SPARKS"
 }
 
-write_noop_shader() {
-  local target="$1"
-  local temporary
-
-  mkdir -p -- "${target%/*}"
-  temporary="$(mktemp "${target}.tmp.XXXXXX")"
-
-  cat >"$temporary" <<'GLSL'
-// ghostty-theme-script:no-op
-// Pass the previous shader stage through unchanged.
-void mainImage(out vec4 fragColor, in vec2 fragCoord) {
-    vec2 uv = fragCoord / max(iResolution.xy, vec2(1.0));
-    fragColor = texture(iChannel0, uv);
-}
-GLSL
-
-  chmod 0644 "$temporary"
-  mv -f -- "$temporary" "$target"
-}
-
-replacement_for_define() {
-  case "$1" in
-  SPACE_STAR_LAYERS) printf '%s' "$GPU_SPACE_STAR_LAYERS" ;;
-  STAR_LAYERS) printf '%s' "$GPU_GAUSSIAN_STAR_LAYERS" ;;
-  METEOR_LAYERS) printf '%s' "$GPU_METEOR_LAYERS" ;;
-  N_STEPS) printf '%s' "$GPU_GEODESIC_STEPS" ;;
-  SPARK_COUNT) printf '%s' "$GPU_CURSOR_SPARKS" ;;
-  *) return 1 ;;
-  esac
-}
-
-# Rewrite a shader using Bash pattern matching only. Source files are untouched.
-# Literal tuning defines support legacy shaders; symbolic aliases remain linked
-# to profile-aware source logic driven by GHOSTTY_GPU_PROFILE.
 write_profiled_shader() {
   local source="$1"
   local target="$2"
   local source_tag="$3"
-  local temporary first_line line rewritten replacement name current_value
-  local define_prefix define_spacing define_suffix
-  local in_fbm=0
-  local fbm_depth=0
-  local fbm_seen_brace=0
-  local index character
+  local temporary first_line
 
   [[ -f "$source" ]] || fail "missing shader: $source"
 
@@ -516,69 +349,19 @@ write_profiled_shader() {
     fi
 
     cat <<EOF_HEADER
-// ghostty-theme-script:source=$source_tag
-// ghostty-theme-script:gpu-profile=$GPU_PROFILE
+// beautiful-ghostty:source=$source_tag
+// beautiful-ghostty:gpu-profile=$GPU_PROFILE
 #define GHOSTTY_GPU_PROFILE_ECO 0
 #define GHOSTTY_GPU_PROFILE_BALANCED 1
 #define GHOSTTY_GPU_PROFILE_QUALITY 2
 #define GHOSTTY_GPU_PROFILE_ULTRA 3
 #define GHOSTTY_GPU_PROFILE $GPU_PROFILE_ID
-#define GHOSTTY_FBM_OCTAVES $GPU_FBM_OCTAVES
 EOF_HEADER
 
-    process_line() {
-      line="$1"
-      rewritten="$line"
-
-      if [[ "$line" =~ ^([[:space:]]*#[[:space:]]*define[[:space:]]+)(SPACE_STAR_LAYERS|STAR_LAYERS|METEOR_LAYERS|N_STEPS|SPARK_COUNT)([[:space:]]+)([^[:space:]]+)(.*)$ ]]; then
-        define_prefix="${BASH_REMATCH[1]}"
-        name="${BASH_REMATCH[2]}"
-        define_spacing="${BASH_REMATCH[3]}"
-        current_value="${BASH_REMATCH[4]}"
-        define_suffix="${BASH_REMATCH[5]}"
-
-        if [[ "$current_value" =~ ^[0-9]+$ ]]; then
-          replacement="$(replacement_for_define "$name")"
-          rewritten="${define_prefix}${name}${define_spacing}${replacement}${define_suffix}"
-        fi
-      fi
-
-      if [[ "$line" =~ ^[[:space:]]*float[[:space:]]+fbm[[:space:]]*\( ]]; then
-        in_fbm=1
-        fbm_depth=0
-        fbm_seen_brace=0
-      fi
-
-      if [[ "$in_fbm" == "1" ]] && [[ "$rewritten" =~ ^([[:space:]]*for[[:space:]]*\([[:space:]]*int[[:space:]]+i[[:space:]]*=[[:space:]]*0[[:space:]]*\;[[:space:]]*i[[:space:]]*\<[[:space:]]*)[0-9]+([[:space:]]*\;[[:space:]]*i\+\+[[:space:]]*\).*)$ ]]; then
-        rewritten="${BASH_REMATCH[1]}GHOSTTY_FBM_OCTAVES${BASH_REMATCH[2]}"
-      fi
-
-      printf '%s\n' "$rewritten"
-
-      if [[ "$in_fbm" == "1" ]]; then
-        for ((index = 0; index < ${#rewritten}; index += 1)); do
-          character="${rewritten:index:1}"
-          if [[ "$character" == "{" ]]; then
-            fbm_depth=$((fbm_depth + 1))
-            fbm_seen_brace=1
-          elif [[ "$character" == "}" ]]; then
-            fbm_depth=$((fbm_depth - 1))
-          fi
-        done
-
-        if [[ "$fbm_seen_brace" == "1" && "$fbm_depth" -le 0 ]]; then
-          in_fbm=0
-        fi
-      fi
-    }
-
     if [[ "$first_line" != \#version* ]]; then
-      process_line "$first_line"
+      printf '%s\n' "$first_line"
     fi
-
-    while IFS= read -r line <&3 || [[ -n "$line" ]]; do
-      process_line "$line"
-    done
+    cat <&3
   } >"$temporary"
 
   exec 3<&-
@@ -589,50 +372,97 @@ EOF_HEADER
 materialize_selection() {
   local source_dir="$1"
   local selection="$2"
-  local target="$3"
-  local kind="$4"
-  local enabled="$5"
+  local kind="$3"
+  local enabled="$4"
+  local digest filename source stem target temporary
 
-  if [[ "$enabled" != "1" || -z "$selection" ]]; then
-    write_noop_shader "$target"
-    return
+  [[ "$enabled" == "1" && -n "$selection" ]] || return 0
+
+  source="$source_dir/$selection"
+  stem="${selection%.glsl}"
+  mkdir -p -- "$GENERATED_DIR"
+  temporary="$(mktemp "$GENERATED_DIR/.shader.XXXXXX")"
+  rm -- "$temporary"
+
+  write_profiled_shader "$source" "$temporary" "$kind/$selection"
+  digest="$(sha256sum -- "$temporary")"
+  digest="${digest%% *}"
+  filename="$kind-$stem-$GPU_PROFILE-${digest:0:16}.glsl"
+  target="$GENERATED_DIR/$filename"
+
+  if [[ -f "$target" ]]; then
+    rm -- "$temporary"
+  else
+    mv -- "$temporary" "$target"
   fi
+  ACTIVE_SHADER_PATHS+=("$target")
+}
 
-  write_profiled_shader \
-    "$source_dir/$selection" \
-    "$target" \
-    "$kind/$selection"
+quote_ghostty_value() {
+  local value="$1"
+
+  value="${value//\\/\\\\}"
+  value="${value//\"/\\\"}"
+  printf '"%s"' "$value"
+}
+
+write_active_config() {
+  local path temporary
+
+  temporary="$(mktemp "${ACTIVE_CONFIG}.tmp.XXXXXX")"
+  {
+    printf '# Generated by beautiful-ghostty; do not edit.\n'
+    for path in "${ACTIVE_SHADER_PATHS[@]}"; do
+      printf 'custom-shader = %s\n' "$(quote_ghostty_value "$path")"
+    done
+    ((${#ACTIVE_SHADER_PATHS[@]} == 0)) || printf 'custom-shader-animation = true\n'
+  } >"$temporary"
+  chmod 0644 "$temporary"
+  mv -f -- "$temporary" "$ACTIVE_CONFIG"
+}
+
+cleanup_generated_shaders() {
+  local file filename path
+  local -A active=()
+
+  for path in "${ACTIVE_SHADER_PATHS[@]}"; do
+    active["${path##*/}"]=1
+  done
+
+  shopt -s nullglob
+  for file in "$GENERATED_DIR"/*.glsl; do
+    filename="${file##*/}"
+    [[ -n "${active[$filename]:-}" ]] || rm -- "$file"
+  done
+  shopt -u nullglob
 }
 
 apply_shader_state() {
-  if [[ "$COMBINED_ENABLED" == "1" ]]; then
-    write_noop_shader "$CUSTOM_BACKGROUND"
-    write_noop_shader "$CUSTOM_CURSOR"
+  ACTIVE_SHADER_PATHS=()
+  mkdir -p -- "$GENERATED_DIR"
 
+  if [[ "$COMBINED_ENABLED" == "1" ]]; then
     materialize_selection \
       "$COMBINED_DIR" \
       "$COMBINED_SELECTION" \
-      "$CUSTOM_COMBINED" \
       combined \
       "$COMBINED_ENABLED"
   else
     materialize_selection \
       "$BACKGROUND_DIR" \
       "$BACKGROUND_SELECTION" \
-      "$CUSTOM_BACKGROUND" \
       background \
       "$BACKGROUND_ENABLED"
 
     materialize_selection \
       "$CURSOR_DIR" \
       "$CURSOR_SELECTION" \
-      "$CUSTOM_CURSOR" \
       cursor \
       "$CURSOR_ENABLED"
-
-    write_noop_shader "$CUSTOM_COMBINED"
   fi
 
+  write_active_config
+  cleanup_generated_shaders
   save_state
 }
 
@@ -640,15 +470,7 @@ reload_ghostty() {
   local proc pid process_name
   local signalled=0
 
-  # Preferred Linux path when Ghostty is managed by its user systemd service.
-  if command -v systemctl >/dev/null 2>&1; then
-    if systemctl reload --user app-com.mitchellh.ghostty.service >/dev/null 2>&1; then
-      return 0
-    fi
-  fi
-
-  # Dependency-free Bash fallback: signal every process whose /proc comm name
-  # is exactly "ghostty". SIGUSR2 asks Ghostty to reload its configuration.
+  # SIGUSR2 asks every running Ghostty process to reload its configuration.
   for proc in /proc/[0-9]*; do
     [[ -r "$proc/comm" ]] || continue
     IFS= read -r process_name <"$proc/comm" || continue
@@ -830,6 +652,10 @@ parse_global_options() {
       usage
       exit 0
       ;;
+    --version)
+      print_version
+      exit 0
+      ;;
     --)
       shift
       break
@@ -855,6 +681,10 @@ main() {
   case "$command" in
   help)
     usage
+    ;;
+
+  version)
+    print_version
     ;;
 
   list)
@@ -906,6 +736,14 @@ main() {
     value="${1:-}"
     [[ -n "$value" ]] || fail "set-profile requires eco, balanced, quality, or ultra"
     set_profile "$value"
+    ;;
+
+  apply)
+    ensure_layout
+    load_state
+    apply_shader_state
+    reload_after_change
+    status
     ;;
 
   reload)

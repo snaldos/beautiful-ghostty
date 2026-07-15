@@ -1,6 +1,8 @@
-# The installer writes one optional include with the repository's absolute path.
-# The included shaders.ghostty keeps all custom-shader settings together.
+# The installer adds this block to the existing Ghostty config. The absolute
+# path is generated for the selected config directory; do not copy this example
+# literally when XDG_CONFIG_HOME differs from ~/.config.
 
 # BEGIN beautiful-ghostty
-config-file = ?"/absolute/path/to/beautiful-ghostty/shaders.ghostty"
+# Generated shader state; rerun install.sh to update this path.
+config-file = ?~/.config/ghostty/beautiful-ghostty/active.ghostty
 # END beautiful-ghostty

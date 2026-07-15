@@ -1,33 +1,27 @@
 # Beautiful Ghostty
 
-A cosmic Ghostty shader with perspective stars, radial meteors, a moving galaxy,
-a geodesic black hole, and a matching cursor effect.
+A configurable cosmic shader suite for Ghostty: perspective starflight, radial
+meteors, an animated nebula and galaxy, a geodesic black hole, and a matching
+cursor effect.
 
 <p align="center">
   <a href="https://github.com/user-attachments/assets/71146e13-6d2b-40ab-b276-b58606345cbb">
-    <img
-      src="assets/demo.gif"
-      alt="Beautiful Ghostty animated demo"
-      width="100%"
-    >
+    <img src="assets/demo.gif" alt="Beautiful Ghostty animated demo" width="100%">
   </a>
 </p>
 
 <p align="center">
-  <strong>
-    Perspective starflight · radial meteors · animated galaxy · geodesic black hole · cosmic cursor
-  </strong>
+  <strong>Starflight · meteors · galaxy · geodesic black hole · cosmic cursor</strong>
 </p>
 
-<p align="center">
-  <a href="https://github.com/user-attachments/assets/71146e13-6d2b-40ab-b276-b58606345cbb">
-    Watch the full one-minute demo
-  </a>
-</p>
+## Requirements
+
+- Linux
+- Ghostty 1.3.0 or newer with custom-shader support
+- Bash 4.0 or newer
+- GNU coreutils (`sha256sum`, `mktemp`, `cp`, and `mv`)
 
 ## Install
-
-Requires **Ghostty 1.2.0 or newer**, **Bash**, and Linux.
 
 ```bash
 git clone https://github.com/snaldos/beautiful-ghostty.git
@@ -35,258 +29,273 @@ cd beautiful-ghostty
 ./install.sh
 ```
 
-The repository may be cloned anywhere.
+The clone may live anywhere and may be deleted after installation. The installer:
 
-The installer:
+1. copies immutable shader sources to
+   `${XDG_DATA_HOME:-~/.local/share}/beautiful-ghostty`;
+2. creates `~/.local/bin/beautiful-ghostty`;
+3. adds one marked, optional include to the existing Ghostty config;
+4. stores generated state separately under the Ghostty config directory;
+5. selects Combined Cosmos with the `quality` profile on first install;
+6. validates the complete Ghostty config and reloads running Ghostty processes.
 
-- finds your Ghostty config;
-- creates a timestamped `.bak` backup;
-- removes active `custom-shader` settings left by a manual or older install;
-- adds one optional `config-file` include for the repository's
-  `shaders.ghostty`;
-- enables the Combined Cosmos shader mode;
-- selects the `quality` GPU profile;
-- validates the config and reloads Ghostty.
+The installer backs up the main config before changing it. It updates only the
+block between `# BEGIN beautiful-ghostty` and `# END beautiful-ghostty`; existing
+`custom-shader` settings and unrelated includes remain untouched. If the config
+is a symlink, its resolved source is edited atomically without replacing the
+symlink.
 
-For a custom config location:
+Ensure `~/.local/bin` is in `PATH`, then inspect the active state:
+
+```bash
+beautiful-ghostty status
+```
+
+### Custom locations
 
 ```bash
 ./install.sh --config /path/to/config.ghostty
+./install.sh --install-dir /path/to/data --bin-dir /path/to/bin
+./install.sh --no-reload
 ```
 
-The main Ghostty config therefore contains only one managed include.
-`shaders.ghostty` keeps the shader chain together and resolves its shader paths
-relative to the repository. Rerun `./install.sh` after moving the repository so
-the absolute include path is updated.
+A command wrapper remembers a custom config path. Re-running the installer is
+idempotent and preserves the current shader selections and GPU profile.
+
+### Upgrade
+
+```bash
+cd beautiful-ghostty
+git pull --ff-only
+./install.sh
+```
+
+### Uninstall
+
+```bash
+./uninstall.sh
+```
+
+This removes only installer-owned files and the managed config block. Generated
+state is retained so a reinstall restores the selection. Remove it too with:
+
+```bash
+./uninstall.sh --purge
+```
+
+## Clean ownership model
+
+Source and generated files are intentionally separate:
+
+```text
+~/.local/share/beautiful-ghostty/       # installed, immutable sources
+├── ghostty-shaders.sh
+└── shaders/
+    ├── background/cosmos.glsl
+    ├── combined/cosmos.glsl
+    └── cursor/cosmic.glsl
+
+~/.config/ghostty/beautiful-ghostty/   # generated machine-local state
+├── active.ghostty
+├── generated/*.glsl
+└── state
+```
+
+`active.ghostty` references content-addressed generated shaders. Changing a
+source or GPU profile changes the configured filename, ensuring that Ghostty
+rebuilds its shader chain instead of retaining a cached shader at a fixed path.
+Only durable sources are tracked in this repository.
+
+## Commands
+
+```bash
+beautiful-ghostty status
+beautiful-ghostty mode
+beautiful-ghostty profile
+beautiful-ghostty list background
+beautiful-ghostty list cursor
+beautiful-ghostty list combined
+beautiful-ghostty list profiles
+beautiful-ghostty validate
+beautiful-ghostty reload
+beautiful-ghostty --version
+```
+
+The backend is UI-independent. Launchers such as Fuzzel, Rofi, or a desktop menu
+can invoke the same commands without modifying the manager.
 
 ## GPU profiles
 
 ```bash
-./ghostty-shaders.sh set-profile eco
-./ghostty-shaders.sh set-profile balanced
-./ghostty-shaders.sh set-profile quality
-./ghostty-shaders.sh set-profile ultra
+beautiful-ghostty set-profile eco
+beautiful-ghostty set-profile balanced
+beautiful-ghostty set-profile quality
+beautiful-ghostty set-profile ultra
 ```
 
-`quality` is the default.
-
-| Profile    | Intended use                      |
-| ---------- | --------------------------------- |
-| `eco`      | Lowest GPU usage                  |
+| Profile | Intended use |
+| --- | --- |
+| `eco` | Lowest GPU usage |
 | `balanced` | Daily use on lower-power hardware |
-| `quality`  | Recommended default               |
-| `ultra`    | Maximum visual detail             |
+| `quality` | Recommended default |
+| `ultra` | Maximum visual detail |
+
+Profiles select compile-time bounds for star layers, meteors, black-hole
+geodesics, FBM octaves, and cursor sparks.
 
 ## Shader modes
 
-The manager uses **Separate** and **Combined** instead of the ambiguous
-“single” and “multi” labels:
-
-| Mode       | Meaning |
-| ---------- | ------- |
-| `separate` | Cursor and background shaders are selected independently. Enabling either one disables the Combined shader while preserving the other separate stage. |
-| `combined` | One source shader supplies both effects. Enabling it disables both separate stages. |
-| `none`     | No shader effect is enabled. |
-
-Show the active mode:
-
-```bash
-./ghostty-shaders.sh mode
-```
+| Mode | Meaning |
+| --- | --- |
+| `separate` | Cursor and background stages are selected independently. |
+| `combined` | One shader supplies the complete background and cursor effect. |
+| `none` | No Beautiful Ghostty shader is enabled. |
 
 ### Separate shaders
 
 ```bash
-./ghostty-shaders.sh set background cosmos
-./ghostty-shaders.sh set cursor cosmic
+beautiful-ghostty set background cosmos
+beautiful-ghostty set cursor cosmic
 ```
 
-Each command switches to Separate mode by disabling the Combined shader. The
-other separate stage is left unchanged, so cursor and background can be used
-alone or together.
+Enabling either stage disables Combined mode while leaving the other separate
+stage unchanged.
 
 ### Combined shader
 
 ```bash
-./ghostty-shaders.sh set combined cosmos
+beautiful-ghostty set combined cosmos
 ```
 
-This replaces both separate stages and reports the complete resulting state.
+This disables both separate stages and uses the single combined source.
 
 ### Disable a stage
 
 ```bash
-./ghostty-shaders.sh set cursor none
-./ghostty-shaders.sh set background none
-./ghostty-shaders.sh set combined none
+beautiful-ghostty set cursor none
+beautiful-ghostty set background none
+beautiful-ghostty set combined none
 ```
 
-`none` disables only the requested stage. It does not disable, enable, or
-restore any other stage. Use `status` to inspect every selection and the GPU
-profile:
+`none` disables only the requested stage; it never restores another stage.
 
-```bash
-./ghostty-shaders.sh status
-```
+## Editing and tuning
 
-## Tuning
+Edit the source clone, then rerun `./install.sh` to copy the revised sources into
+the installation. The manager regenerates the selected shader during the
+upgrade. Do not edit files under the generated runtime directory.
 
-Edit the source shader, not the generated `custom_*.glsl` files.
-
-For combined mode:
-
-```text
-shaders/combined/cosmos.glsl
-```
-
-For separate mode:
+Source files:
 
 ```text
 shaders/background/cosmos.glsl
+shaders/combined/cosmos.glsl
 shaders/cursor/cosmic.glsl
 ```
 
 ### Starfield
 
-| Control                       | Effect                                          |
-| ----------------------------- | ----------------------------------------------- |
-| `SPACE_STAR_TRAVEL_SPEED`     | Forward starflight speed                        |
-| `SPACE_STAR_DENSITY`          | Number of stars                                 |
-| `SPACE_STAR_BRIGHTNESS`       | Overall star brightness                         |
-| `SPACE_STAR_STREAK_CHANCE`    | Fraction of stars that receive trails           |
-| `SPACE_STAR_STREAK_START`     | How close a star must be before a trail appears |
-| `SPACE_STAR_STREAK_LENGTH_PX` | Trail length                                    |
-| `SPACE_STAR_STREAK_STRENGTH`  | Trail brightness                                |
-| `SPACE_STAR_TRAVEL_CENTER`    | Center from which stars move outward            |
+| Control | Effect |
+| --- | --- |
+| `SPACE_STAR_TRAVEL_SPEED` | Forward starflight speed |
+| `SPACE_STAR_DENSITY` | Number of stars |
+| `SPACE_STAR_BRIGHTNESS` | Overall star brightness |
+| `SPACE_STAR_STREAK_CHANCE` | Fraction of stars receiving trails |
+| `SPACE_STAR_STREAK_START` | Distance at which trails appear |
+| `SPACE_STAR_STREAK_LENGTH_PX` | Trail length |
+| `SPACE_STAR_STREAK_STRENGTH` | Trail brightness |
+| `SPACE_STAR_TRAVEL_CENTER` | Center from which stars move outward |
 
-Set `SPACE_STAR_TRAVEL_SPEED` to `0.0` to stop star movement. Star trails also
-disappear when the travel speed is zero.
+Set `SPACE_STAR_TRAVEL_SPEED` to `0.0` to stop star movement and trails.
 
 ### Meteors
 
-| Control                 | Effect                           |
-| ----------------------- | -------------------------------- |
-| `METEOR_AMOUNT`         | Probability of meteors appearing |
-| `METEOR_SPEED`          | Meteor travel speed              |
-| `METEOR_OPACITY`        | Overall meteor visibility        |
-| `METEOR_CURVE_STRENGTH` | Amount of trajectory variation   |
-| `NEAR_TRAIL_LENGTH`     | Trail length for close meteors   |
-| `FAR_TRAIL_LENGTH`      | Trail length for distant meteors |
-| `TRAIL_GLOW`            | Meteor trail glow                |
-| `HEAD_GLOW`             | Meteor head glow                 |
+| Control | Effect |
+| --- | --- |
+| `METEOR_AMOUNT` | Probability of meteors appearing |
+| `METEOR_SPEED` | Meteor travel speed |
+| `METEOR_OPACITY` | Overall meteor visibility |
+| `METEOR_CURVE_STRENGTH` | Trajectory variation |
+| `NEAR_TRAIL_LENGTH` | Trail length for close meteors |
+| `FAR_TRAIL_LENGTH` | Trail length for distant meteors |
+| `TRAIL_GLOW` | Trail glow |
+| `HEAD_GLOW` | Meteor-head glow |
 
 Set `METEOR_AMOUNT` to `0.0` to disable meteors.
 
 ### Nebula
 
-| Control                           | Effect                                      |
-| --------------------------------- | ------------------------------------------- |
-| `NEBULA_STRENGTH`                 | Overall nebula brightness                   |
-| `NEBULA_POSITION`                 | Base screen position                        |
-| `NEBULA_POSITION_DRIFT_AMPLITUDE` | Distance travelled around the base position |
-| `NEBULA_POSITION_DRIFT_SPEED`     | Position movement speed                     |
-| `NEBULA_TEXTURE_FLOW_SPEED`       | Internal cloud movement speed               |
-| `NEBULA_ROTATION`                 | Nebula orientation                          |
-| `NEBULA_LARGE_WARP_STRENGTH`      | Large cloud distortion                      |
-| `NEBULA_SMALL_WARP_STRENGTH`      | Fine cloud distortion                       |
-
-Set `NEBULA_STRENGTH` to `0.0` to hide the nebula.
+| Control | Effect |
+| --- | --- |
+| `NEBULA_STRENGTH` | Overall brightness |
+| `NEBULA_POSITION` | Base screen position |
+| `NEBULA_POSITION_DRIFT_AMPLITUDE` | Position movement range |
+| `NEBULA_POSITION_DRIFT_SPEED` | Position movement speed |
+| `NEBULA_TEXTURE_FLOW_SPEED` | Internal cloud movement |
+| `NEBULA_ROTATION` | Orientation |
+| `NEBULA_LARGE_WARP_STRENGTH` | Large cloud distortion |
+| `NEBULA_SMALL_WARP_STRENGTH` | Fine cloud distortion |
 
 ### Galaxy
 
-| Control                            | Effect                                   |
-| ---------------------------------- | ---------------------------------------- |
-| `GALAXY_POSITION`                  | Screen position                          |
-| `GALAXY_DIAMETER`                  | Galaxy size                              |
-| `GALAXY_BRIGHTNESS`                | Overall brightness                       |
-| `GALAXY_ROTATION`                  | Galaxy orientation                       |
-| `GALAXY_SPIN_SPEED`                | Spiral-arm rotation speed                |
-| `GALAXY_BREATHE_AMOUNT`            | Expansion and contraction amount         |
-| `GALAXY_BREATHE_SPEED`             | Expansion and contraction speed          |
-| `GALAXY_INTERNAL_DRIFT_SPEED`      | Internal stellar and dust movement speed |
-| `GALAXY_INTERNAL_TANGENTIAL_DRIFT` | Sideways internal movement               |
-| `GALAXY_INTERNAL_RADIAL_DRIFT`     | Inward and outward internal movement     |
-
-Set `GALAXY_BREATHE_AMOUNT` to `0.0` to disable the breathing effect.
+| Control | Effect |
+| --- | --- |
+| `GALAXY_POSITION` | Screen position |
+| `GALAXY_DIAMETER` | Galaxy size |
+| `GALAXY_BRIGHTNESS` | Overall brightness |
+| `GALAXY_ROTATION` | Orientation |
+| `GALAXY_SPIN_SPEED` | Spiral-arm rotation speed |
+| `GALAXY_BREATHE_AMOUNT` | Expansion and contraction amount |
+| `GALAXY_BREATHE_SPEED` | Expansion and contraction speed |
+| `GALAXY_INTERNAL_DRIFT_SPEED` | Internal movement speed |
 
 ### Black hole
 
-| Control                     | Effect                                               |
-| --------------------------- | ---------------------------------------------------- |
-| `BLACK_HOLE_RADIUS`         | Black-hole size                                      |
-| `BLACK_HOLE_DRIFT_SPEED`    | Movement speed                                       |
-| `BLACK_HOLE_TRAVEL_REACH`   | Fraction of the permitted area it may travel through |
-| `BLACK_HOLE_PULSE_AMOUNT`   | Size-pulsing amount                                  |
-| `BLACK_HOLE_PULSE_SPEED`    | Size-pulsing speed                                   |
-| `BLACK_HOLE_MOTION_MODE`    | Movement path                                        |
-| `BLACK_HOLE_LOOK_MODE`      | Accretion-disk appearance animation                  |
-| `BH_EVOLVE_SECONDS`         | Time taken to cycle through evolving looks           |
-| `BH_GLOBAL_DISK_BRIGHTNESS` | Accretion-disk brightness                            |
-| `BH_GLOBAL_DISK_SIZE`       | Accretion-disk size                                  |
+| Control | Effect |
+| --- | --- |
+| `BLACK_HOLE_RADIUS` | Black-hole size |
+| `BLACK_HOLE_DRIFT_SPEED` | Movement speed |
+| `BLACK_HOLE_TRAVEL_REACH` | Fraction of the permitted area traversed |
+| `BLACK_HOLE_PULSE_AMOUNT` | Size-pulsing amount |
+| `BLACK_HOLE_PULSE_SPEED` | Size-pulsing speed |
+| `BLACK_HOLE_MOTION_MODE` | Movement path |
+| `BLACK_HOLE_LOOK_MODE` | Accretion-disk appearance animation |
+| `BH_EVOLVE_SECONDS` | Appearance-cycle duration |
+| `BH_GLOBAL_DISK_BRIGHTNESS` | Accretion-disk brightness |
+| `BH_GLOBAL_DISK_SIZE` | Accretion-disk size |
 
-Available movement modes:
-
-```glsl
-#define BLACK_HOLE_MOTION_MODE BH_MOTION_ORGANIC
-#define BLACK_HOLE_MOTION_MODE BH_MOTION_FULL_SWEEP
-#define BLACK_HOLE_MOTION_MODE BH_MOTION_ORBIT
-#define BLACK_HOLE_MOTION_MODE BH_MOTION_DIAGONAL_BOUNCE
-```
-
-Available appearance modes:
-
-```glsl
-#define BLACK_HOLE_LOOK_MODE BH_LOOK_FIXED
-#define BLACK_HOLE_LOOK_MODE BH_LOOK_SHOWCASE
-#define BLACK_HOLE_LOOK_MODE BH_LOOK_EVOLVE
-#define BLACK_HOLE_LOOK_MODE BH_LOOK_DUAL
-```
+Movement modes include `BH_MOTION_ORGANIC`, `BH_MOTION_FULL_SWEEP`,
+`BH_MOTION_ORBIT`, and `BH_MOTION_DIAGONAL_BOUNCE`. Appearance modes include
+`BH_LOOK_FIXED`, `BH_LOOK_SHOWCASE`, `BH_LOOK_EVOLVE`, and `BH_LOOK_DUAL`.
 
 ### Cursor
 
-The cursor controls are near the bottom of:
+| Control | Effect |
+| --- | --- |
+| `EFFECT_DURATION` | Duration of the cursor animation |
+| `HEAD_GOLD_STRENGTH` | Destination glow brightness |
+| `PHOTON_RING_STRENGTH` | Photon-ring brightness |
+| `RIPPLE_STRENGTH` | Expanding ripple brightness |
+| `ORBIT_STRENGTH` | Inclined orbit brightness |
+| `TRAIL_CORE_STRENGTH` | Cursor trail brightness |
+| `TRAIL_GLOW_STRENGTH` | Cursor trail glow |
+| `SPARK_STRENGTH` | Spark brightness |
 
-```text
-shaders/combined/cosmos.glsl
-```
+The photon ring, ripple, orbit, and nebula wake remain enabled at every profile.
+The bounded spark loop scales from 0 to 6 sparks.
 
-and inside:
-
-```text
-shaders/cursor/cosmic.glsl
-```
-
-| Control                | Effect                           |
-| ---------------------- | -------------------------------- |
-| `EFFECT_DURATION`      | Duration of the cursor animation |
-| `HEAD_GOLD_STRENGTH`   | Destination glow brightness      |
-| `PHOTON_RING_STRENGTH` | Photon-ring brightness           |
-| `RIPPLE_STRENGTH`      | Expanding ripple brightness      |
-| `ORBIT_STRENGTH`       | Inclined orbit brightness        |
-| `TRAIL_CORE_STRENGTH`  | Cursor trail brightness          |
-| `TRAIL_GLOW_STRENGTH`  | Cursor trail glow                |
-| `SPARK_STRENGTH`       | Spark brightness                 |
-
-The photon ring, ripple, orbit, and nebula wake remain enabled at every GPU
-profile so the cursor keeps its defining appearance. The bounded spark loop
-scales with the profile: `0`, `2`, `4`, or `6` sparks.
-
-### Apply changes
-
-After editing the combined source:
+## Troubleshooting
 
 ```bash
-./ghostty-shaders.sh --no-reload set combined cosmos
-./ghostty-shaders.sh reload
+beautiful-ghostty validate
+beautiful-ghostty status
+ghostty +show-config | grep '^custom-shader'
 ```
 
-After editing the separate sources:
-
-```bash
-./ghostty-shaders.sh --no-reload set background cosmos
-./ghostty-shaders.sh --no-reload set cursor cosmic
-./ghostty-shaders.sh reload
-```
+If no shader appears, confirm that Ghostty's effective config contains a path
+under `beautiful-ghostty/generated/`. `ghostty +validate-config` checks config
+syntax; shader compilation occurs when Ghostty creates or reloads a render
+surface, so inspect Ghostty's runtime diagnostics for GLSL failures.
 
 ## License
 

@@ -1,18 +1,12 @@
-# Generated shader outputs and runtime state
-shaders/.shader-selection
-shaders/custom_background.glsl
-shaders/custom_combined.glsl
-shaders/custom_cursor.glsl
+# Local media source retained outside GitHub's source archive
+assets/demo-web.mp4
 
 # Temporary files
-shaders/*.tmp.*
-shaders/*.body.*
+*.tmp.*
+*.body.*
 
 # Editors and operating systems
 .DS_Store
 *.swp
 *.swo
 *~
-
-# GitHub-hosted full demo video
-assets/demo-web.mp4

@@ -1,6 +1,0 @@
-# Beautiful Ghostty shader chain.
-# Shader paths are relative to this file.
-custom-shader = shaders/custom_background.glsl
-custom-shader = shaders/custom_cursor.glsl
-custom-shader = shaders/custom_combined.glsl
-custom-shader-animation = true
