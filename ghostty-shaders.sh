@@ -14,6 +14,7 @@ set -Eeuo pipefail
 #
 # Expected layout beside this script:
 #
+#   shaders.ghostty
 #   shaders/
 #   ├── background/*.glsl
 #   ├── combined/*.glsl
@@ -22,12 +23,16 @@ set -Eeuo pipefail
 #   ├── custom_combined.glsl
 #   └── custom_cursor.glsl
 #
-# Recommended Ghostty config order, using absolute paths:
+# Recommended dedicated shaders.ghostty file beside this script:
 #
-#   custom-shader = /path/to/beautiful-ghostty/shaders/custom_background.glsl
-#   custom-shader = /path/to/beautiful-ghostty/shaders/custom_cursor.glsl
-#   custom-shader = /path/to/beautiful-ghostty/shaders/custom_combined.glsl
+#   custom-shader = shaders/custom_background.glsl
+#   custom-shader = shaders/custom_cursor.glsl
+#   custom-shader = shaders/custom_combined.glsl
 #   custom-shader-animation = true
+#
+# Include it once from the main Ghostty config:
+#
+#   config-file = ?"/path/to/beautiful-ghostty/shaders.ghostty"
 #
 # Commands:
 #

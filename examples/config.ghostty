@@ -1,8 +1,6 @@
-# The installer writes this block with the repository's absolute path.
+# The installer writes one optional include with the repository's absolute path.
+# The included shaders.ghostty keeps all custom-shader settings together.
 
 # BEGIN beautiful-ghostty
-custom-shader = "/absolute/path/to/beautiful-ghostty/shaders/custom_background.glsl"
-custom-shader = "/absolute/path/to/beautiful-ghostty/shaders/custom_cursor.glsl"
-custom-shader = "/absolute/path/to/beautiful-ghostty/shaders/custom_combined.glsl"
-custom-shader-animation = true
+config-file = ?"/absolute/path/to/beautiful-ghostty/shaders.ghostty"
 # END beautiful-ghostty

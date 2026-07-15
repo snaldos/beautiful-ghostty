@@ -41,8 +41,9 @@ The installer:
 
 - finds your Ghostty config;
 - creates a timestamped `.bak` backup;
-- removes active `custom-shader` settings from that config;
-- adds the Beautiful Ghostty shader chain using absolute paths;
+- removes active `custom-shader` settings left by a manual or older install;
+- adds one optional `config-file` include for the repository's
+  `shaders.ghostty`;
 - enables the Combined Cosmos shader mode;
 - selects the `quality` GPU profile;
 - validates the config and reloads Ghostty.
@@ -53,7 +54,10 @@ For a custom config location:
 ./install.sh --config /path/to/config.ghostty
 ```
 
-Rerun `./install.sh` after moving the repository.
+The main Ghostty config therefore contains only one managed include.
+`shaders.ghostty` keeps the shader chain together and resolves its shader paths
+relative to the repository. Rerun `./install.sh` after moving the repository so
+the absolute include path is updated.
 
 ## GPU profiles
 

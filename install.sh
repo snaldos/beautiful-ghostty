@@ -4,8 +4,8 @@ set -Eeuo pipefail
 
 # Install Beautiful Ghostty into an existing Ghostty configuration.
 #
-# The repository may live anywhere. Absolute shader paths are written into the
-# selected Ghostty config.
+# The repository may live anywhere. The selected Ghostty config receives one
+# optional absolute include for this repository's dedicated shaders.ghostty.
 
 SCRIPT_PATH="${BASH_SOURCE[0]}"
 SCRIPT_DIR="${SCRIPT_PATH%/*}"
@@ -13,6 +13,7 @@ SCRIPT_DIR="${SCRIPT_PATH%/*}"
 SCRIPT_DIR="$(cd -- "$SCRIPT_DIR" && pwd -P)"
 
 MANAGER="$SCRIPT_DIR/ghostty-shaders.sh"
+SHADER_CONFIG="$SCRIPT_DIR/shaders.ghostty"
 
 BEGIN_MARKER="# BEGIN beautiful-ghostty"
 END_MARKER="# END beautiful-ghostty"
@@ -121,8 +122,8 @@ write_updated_config() {
 
       [[ "$skipping_managed_block" == "1" ]] && continue
 
-      # Remove active shader settings from the selected config. Commented
-      # examples remain untouched.
+      # Remove shader settings left by a manual or pre-include installation.
+      # Commented examples and unrelated config-file includes remain untouched.
       if is_active_shader_setting "$line"; then
         continue
       fi
@@ -148,13 +149,7 @@ write_updated_config() {
 
   printf '\n%s\n' "$BEGIN_MARKER"
   printf '# Managed by Beautiful Ghostty. Rerun install.sh after moving the repository.\n'
-  printf 'custom-shader = %s\n' \
-    "$(quote_ghostty_path "$SCRIPT_DIR/shaders/custom_background.glsl")"
-  printf 'custom-shader = %s\n' \
-    "$(quote_ghostty_path "$SCRIPT_DIR/shaders/custom_cursor.glsl")"
-  printf 'custom-shader = %s\n' \
-    "$(quote_ghostty_path "$SCRIPT_DIR/shaders/custom_combined.glsl")"
-  printf 'custom-shader-animation = true\n'
+  printf 'config-file = ?%s\n' "$(quote_ghostty_path "$SHADER_CONFIG")"
   printf '%s\n' "$END_MARKER"
 }
 
@@ -214,6 +209,8 @@ main() {
   [[ $# -eq 0 ]] || fail "unexpected argument: $1"
   [[ -x "$MANAGER" ]] ||
     fail "shader manager is not executable: $MANAGER"
+  [[ -f "$SHADER_CONFIG" ]] ||
+    fail "shader config not found: $SHADER_CONFIG"
   command -v ghostty >/dev/null 2>&1 ||
     fail "ghostty executable not found"
 
@@ -264,6 +261,7 @@ main() {
 
   printf '\nBeautiful Ghostty installed.\n'
   printf 'Config:  %s\n' "$CONFIG_FILE"
+  printf 'Include: %s\n' "$SHADER_CONFIG"
   printf 'Shaders: %s/shaders\n' "$SCRIPT_DIR"
 
   if [[ -n "$BACKUP_FILE" ]]; then
