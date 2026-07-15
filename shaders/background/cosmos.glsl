@@ -172,6 +172,8 @@
 #define SPACE_STAR_BIG_SIZE_GAIN 1.75
 #define SPACE_STAR_HALO_RADIUS 3.80
 #define SPACE_STAR_HALO_STRENGTH 0.20
+#define SPACE_STAR_SAMPLE_FADE_START 0.80
+#define SPACE_STAR_SAMPLE_FADE_END 1.05
 
 // Only a subset of stars receive motion trails. Set to 0 to disable them.
 #define SPACE_STAR_STREAKS_ENABLED 1
@@ -1021,6 +1023,16 @@ vec3 renderPerspectiveStarLayer(
             }
 #endif
 
+            // A star leaves the 3x3 search region at least 1.11 cells from
+            // its center because its random offset is bounded to 0.39 cell.
+            // Fade all infinite-support light to zero before that rectangular
+            // boundary so short viewports cannot reveal square halo clipping.
+            float samplingSupport = 1.0 - smoothstep(
+                SPACE_STAR_SAMPLE_FADE_START,
+                SPACE_STAR_SAMPLE_FADE_END,
+                length(deltaCell)
+            );
+
             float twinklePhase = TAU * hash12(
                 identity + 131.9
             );
@@ -1052,6 +1064,7 @@ vec3 renderPerspectiveStarLayer(
             );
             layerColor += tint
                 * (core + halo + streak)
+                * samplingSupport
                 * twinkle
                 * distanceGain;
         }

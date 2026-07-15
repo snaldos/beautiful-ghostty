@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.1 — 2026-07-15
+
+- Prevent bright perspective-star halos and streaks from exposing square cell
+  boundaries when Ghostty uses a short viewport.
+
 ## 1.0.0 — 2026-07-15
 
 - Install durable shader sources under the user data directory, independent of
