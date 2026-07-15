@@ -2609,7 +2609,8 @@ void renderCosmosImage(out vec4 fragColor, in vec2 fragCoord) {
 // =============================================================================
 //
 // The cursor profile follows the background GPU_PROFILE automatically.
-// Change only `#define GPU_PROFILE ...` near the top of this file.
+// Preserve its defining rings, orbit, and nebula wake at every profile. These
+// effects are spatially culled; only the bounded spark loop scales down.
 
 #define CURSOR_GPU_ECO      0
 #define CURSOR_GPU_BALANCED 1
@@ -2618,30 +2619,19 @@ void renderCosmosImage(out vec4 fragColor, in vec2 fragCoord) {
 
 #define CURSOR_GPU_PROFILE GPU_PROFILE
 
+#define CURSOR_ENABLE_PHOTON_RING  1
+#define CURSOR_ENABLE_RIPPLE       1
+#define CURSOR_ENABLE_ORBIT        1
+#define CURSOR_ENABLE_NEBULA_WAKE  1
+
 #if CURSOR_GPU_PROFILE == CURSOR_GPU_ECO
-    #define CURSOR_ENABLE_PHOTON_RING  0
-    #define CURSOR_ENABLE_RIPPLE       0
-    #define CURSOR_ENABLE_ORBIT        0
-    #define CURSOR_ENABLE_NEBULA_WAKE  0
-    #define CURSOR_SPARK_COUNT         0
+    #define CURSOR_SPARK_COUNT 0
 #elif CURSOR_GPU_PROFILE == CURSOR_GPU_BALANCED
-    #define CURSOR_ENABLE_PHOTON_RING  1
-    #define CURSOR_ENABLE_RIPPLE       0
-    #define CURSOR_ENABLE_ORBIT        0
-    #define CURSOR_ENABLE_NEBULA_WAKE  1
-    #define CURSOR_SPARK_COUNT         2
+    #define CURSOR_SPARK_COUNT 2
 #elif CURSOR_GPU_PROFILE == CURSOR_GPU_HIGH
-    #define CURSOR_ENABLE_PHOTON_RING  1
-    #define CURSOR_ENABLE_RIPPLE       1
-    #define CURSOR_ENABLE_ORBIT        1
-    #define CURSOR_ENABLE_NEBULA_WAKE  1
-    #define CURSOR_SPARK_COUNT         4
+    #define CURSOR_SPARK_COUNT 4
 #else
-    #define CURSOR_ENABLE_PHOTON_RING  1
-    #define CURSOR_ENABLE_RIPPLE       1
-    #define CURSOR_ENABLE_ORBIT        1
-    #define CURSOR_ENABLE_NEBULA_WAKE  1
-    #define CURSOR_SPARK_COUNT         6
+    #define CURSOR_SPARK_COUNT 6
 #endif
 
 // =============================================================================

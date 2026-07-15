@@ -43,7 +43,7 @@ The installer:
 - creates a timestamped `.bak` backup;
 - removes active `custom-shader` settings from that config;
 - adds the Beautiful Ghostty shader chain using absolute paths;
-- enables the combined Cosmos shader;
+- enables the Combined Cosmos shader mode;
 - selects the `quality` GPU profile;
 - validates the config and reloads Ghostty.
 
@@ -75,31 +75,54 @@ Rerun `./install.sh` after moving the repository.
 
 ## Shader modes
 
-Combined background and cursor:
+The manager uses **Separate** and **Combined** instead of the ambiguous
+“single” and “multi” labels:
+
+| Mode       | Meaning |
+| ---------- | ------- |
+| `separate` | Cursor and background shaders are selected independently. Enabling either one disables the Combined shader while preserving the other separate stage. |
+| `combined` | One source shader supplies both effects. Enabling it disables both separate stages. |
+| `none`     | No shader effect is enabled. |
+
+Show the active mode:
 
 ```bash
-./ghostty-shaders.sh set combined cosmos
+./ghostty-shaders.sh mode
 ```
 
-Separate background and cursor:
+### Separate shaders
 
 ```bash
 ./ghostty-shaders.sh set background cosmos
 ./ghostty-shaders.sh set cursor cosmic
 ```
 
-Show the current state:
+Each command switches to Separate mode by disabling the Combined shader. The
+other separate stage is left unchanged, so cursor and background can be used
+alone or together.
+
+### Combined shader
 
 ```bash
-./ghostty-shaders.sh status
+./ghostty-shaders.sh set combined cosmos
 ```
 
-Disable a stage:
+This replaces both separate stages and reports the complete resulting state.
+
+### Disable a stage
 
 ```bash
 ./ghostty-shaders.sh set cursor none
 ./ghostty-shaders.sh set background none
 ./ghostty-shaders.sh set combined none
+```
+
+`none` disables only the requested stage. It does not disable, enable, or
+restore any other stage. Use `status` to inspect every selection and the GPU
+profile:
+
+```bash
+./ghostty-shaders.sh status
 ```
 
 ## Tuning
@@ -240,7 +263,9 @@ shaders/cursor/cosmic.glsl
 | `TRAIL_GLOW_STRENGTH`  | Cursor trail glow                |
 | `SPARK_STRENGTH`       | Spark brightness                 |
 
-Cursor features and spark counts also follow the selected GPU profile.
+The photon ring, ripple, orbit, and nebula wake remain enabled at every GPU
+profile so the cursor keeps its defining appearance. The bounded spark loop
+scales with the profile: `0`, `2`, `4`, or `6` sparks.
 
 ### Apply changes
 

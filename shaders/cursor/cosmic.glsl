@@ -35,32 +35,28 @@
 #define CURSOR_GPU_HIGH     2
 #define CURSOR_GPU_ULTRA    3
 
-#define CURSOR_GPU_PROFILE CURSOR_GPU_HIGH
+#ifndef GHOSTTY_GPU_PROFILE
+    #define GHOSTTY_GPU_PROFILE CURSOR_GPU_HIGH
+#endif
+
+#define CURSOR_GPU_PROFILE GHOSTTY_GPU_PROFILE
+
+// Preserve the cursor's defining rings, orbit, and nebula wake at every
+// profile. These effects are spatially culled; the profile scales the bounded
+// spark loop without changing the cursor's overall appearance.
+#define CURSOR_ENABLE_PHOTON_RING  1
+#define CURSOR_ENABLE_RIPPLE       1
+#define CURSOR_ENABLE_ORBIT        1
+#define CURSOR_ENABLE_NEBULA_WAKE  1
 
 #if CURSOR_GPU_PROFILE == CURSOR_GPU_ECO
-    #define CURSOR_ENABLE_PHOTON_RING  0
-    #define CURSOR_ENABLE_RIPPLE       0
-    #define CURSOR_ENABLE_ORBIT        0
-    #define CURSOR_ENABLE_NEBULA_WAKE  0
-    #define CURSOR_SPARK_COUNT         0
+    #define CURSOR_SPARK_COUNT 0
 #elif CURSOR_GPU_PROFILE == CURSOR_GPU_BALANCED
-    #define CURSOR_ENABLE_PHOTON_RING  1
-    #define CURSOR_ENABLE_RIPPLE       0
-    #define CURSOR_ENABLE_ORBIT        0
-    #define CURSOR_ENABLE_NEBULA_WAKE  1
-    #define CURSOR_SPARK_COUNT         2
+    #define CURSOR_SPARK_COUNT 2
 #elif CURSOR_GPU_PROFILE == CURSOR_GPU_HIGH
-    #define CURSOR_ENABLE_PHOTON_RING  1
-    #define CURSOR_ENABLE_RIPPLE       1
-    #define CURSOR_ENABLE_ORBIT        1
-    #define CURSOR_ENABLE_NEBULA_WAKE  1
-    #define CURSOR_SPARK_COUNT         4
+    #define CURSOR_SPARK_COUNT 4
 #else
-    #define CURSOR_ENABLE_PHOTON_RING  1
-    #define CURSOR_ENABLE_RIPPLE       1
-    #define CURSOR_ENABLE_ORBIT        1
-    #define CURSOR_ENABLE_NEBULA_WAKE  1
-    #define CURSOR_SPARK_COUNT         6
+    #define CURSOR_SPARK_COUNT 6
 #endif
 
 // =============================================================================

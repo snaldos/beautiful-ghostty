@@ -33,6 +33,7 @@ set -Eeuo pipefail
 #
 #   ghostty-shaders.sh list cursor|background|combined|profiles
 #   ghostty-shaders.sh current cursor|background|combined
+#   ghostty-shaders.sh mode
 #   ghostty-shaders.sh profile
 #   ghostty-shaders.sh status
 #   ghostty-shaders.sh set cursor|background|combined NAME|none
@@ -109,6 +110,7 @@ usage() {
 Usage:
   ghostty-shaders.sh [--no-reload] list cursor|background|combined|profiles
   ghostty-shaders.sh [--no-reload] current cursor|background|combined
+  ghostty-shaders.sh [--no-reload] mode
   ghostty-shaders.sh [--no-reload] profile
   ghostty-shaders.sh [--no-reload] status
   ghostty-shaders.sh [--no-reload] set cursor|background|combined NAME|none
@@ -116,13 +118,13 @@ Usage:
   ghostty-shaders.sh reload
   ghostty-shaders.sh validate
 
-Selection rules:
-  - Selecting a cursor disables the combined stage and leaves the background
-    stage unchanged.
-  - Selecting a background disables the combined stage and leaves the cursor
-    stage unchanged.
-  - Selecting a combined shader disables both separate stages.
-  - Selecting "none" disables the selected stage.
+Shader modes:
+  - Separate: cursor and background stages are configured independently.
+    Enabling either stage disables the combined stage.
+  - Combined: one shader supplies both effects. Enabling it disables both
+    separate stages.
+  - Selecting "none" disables only the requested stage and never restores or
+    changes another stage.
 USAGE
 }
 
@@ -181,6 +183,33 @@ kind_enabled() {
   background) printf '%s' "$BACKGROUND_ENABLED" ;;
   combined) printf '%s' "$COMBINED_ENABLED" ;;
   *) return 1 ;;
+  esac
+}
+
+kind_display_name() {
+  case "$1" in
+  cursor) printf 'Cursor' ;;
+  background) printf 'Background' ;;
+  combined) printf 'Combined' ;;
+  *) return 1 ;;
+  esac
+}
+
+shader_mode() {
+  if [[ "$COMBINED_ENABLED" == "1" ]]; then
+    printf 'combined'
+  elif [[ "$CURSOR_ENABLED" == "1" || "$BACKGROUND_ENABLED" == "1" ]]; then
+    printf 'separate'
+  else
+    printf 'none'
+  fi
+}
+
+shader_mode_display_name() {
+  case "$(shader_mode)" in
+  combined) printf 'Combined shader' ;;
+  separate) printf 'Separate shaders' ;;
+  none) printf 'Off' ;;
   esac
 }
 
@@ -450,11 +479,14 @@ replacement_for_define() {
 }
 
 # Rewrite a shader using Bash pattern matching only. Source files are untouched.
+# Literal tuning defines support legacy shaders; symbolic aliases remain linked
+# to profile-aware source logic driven by GHOSTTY_GPU_PROFILE.
 write_profiled_shader() {
   local source="$1"
   local target="$2"
   local source_tag="$3"
-  local temporary first_line line rewritten replacement name
+  local temporary first_line line rewritten replacement name current_value
+  local define_prefix define_spacing define_suffix
   local in_fbm=0
   local fbm_depth=0
   local fbm_seen_brace=0
@@ -494,9 +526,16 @@ EOF_HEADER
       rewritten="$line"
 
       if [[ "$line" =~ ^([[:space:]]*#[[:space:]]*define[[:space:]]+)(SPACE_STAR_LAYERS|STAR_LAYERS|METEOR_LAYERS|N_STEPS|SPARK_COUNT)([[:space:]]+)([^[:space:]]+)(.*)$ ]]; then
+        define_prefix="${BASH_REMATCH[1]}"
         name="${BASH_REMATCH[2]}"
-        replacement="$(replacement_for_define "$name")"
-        rewritten="${BASH_REMATCH[1]}${name}${BASH_REMATCH[3]}${replacement}${BASH_REMATCH[5]}"
+        define_spacing="${BASH_REMATCH[3]}"
+        current_value="${BASH_REMATCH[4]}"
+        define_suffix="${BASH_REMATCH[5]}"
+
+        if [[ "$current_value" =~ ^[0-9]+$ ]]; then
+          replacement="$(replacement_for_define "$name")"
+          rewritten="${define_prefix}${name}${define_spacing}${replacement}${define_suffix}"
+        fi
       fi
 
       if [[ "$line" =~ ^[[:space:]]*float[[:space:]]+fbm[[:space:]]*\( ]]; then
@@ -657,8 +696,8 @@ set_shader() {
     else
       CURSOR_SELECTION="$normalized"
       CURSOR_ENABLED=1
+      COMBINED_ENABLED=0
     fi
-    COMBINED_ENABLED=0
     ;;
 
   background)
@@ -667,8 +706,8 @@ set_shader() {
     else
       BACKGROUND_SELECTION="$normalized"
       BACKGROUND_ENABLED=1
+      COMBINED_ENABLED=0
     fi
-    COMBINED_ENABLED=0
     ;;
 
   combined)
@@ -677,9 +716,9 @@ set_shader() {
     else
       COMBINED_SELECTION="$normalized"
       COMBINED_ENABLED=1
+      CURSOR_ENABLED=0
+      BACKGROUND_ENABLED=0
     fi
-    CURSOR_ENABLED=0
-    BACKGROUND_ENABLED=0
     ;;
   esac
 
@@ -687,11 +726,23 @@ set_shader() {
   reload_after_change
 
   if [[ "$normalized" == "none" ]]; then
-    printf '%s shader: None\n' "$kind"
+    if [[ "$kind" == "combined" ]]; then
+      printf 'Combined shader disabled. Separate stages were left unchanged and were not restored.\n'
+    else
+      printf '%s shader disabled. Combined and the other separate stage were left unchanged.\n' \
+        "$(kind_display_name "$kind")"
+    fi
+  elif [[ "$kind" == "combined" ]]; then
+    printf 'Combined shader enabled: %s\n' "${normalized%.glsl}"
+    printf 'Separate cursor and background shaders were disabled.\n'
   else
-    printf '%s shader: %s\n' "$kind" "${normalized%.glsl}"
+    printf '%s shader enabled: %s\n' \
+      "$(kind_display_name "$kind")" \
+      "${normalized%.glsl}"
+    printf 'Combined shader was disabled; the other separate stage was left unchanged.\n'
   fi
-  printf 'GPU profile: %s\n' "$(profile_display_name)"
+
+  status
 }
 
 set_profile() {
@@ -749,6 +800,7 @@ status() {
   [[ "$BACKGROUND_ENABLED" == "1" ]] && background="$BACKGROUND_SELECTION"
   [[ "$COMBINED_ENABLED" == "1" ]] && combined="$COMBINED_SELECTION"
 
+  printf 'Shader mode: %s (%s)\n' "$(shader_mode_display_name)" "$(shader_mode)"
   printf 'GPU profile: %s (%s)\n' "$(profile_display_name)" "$GPU_PROFILE"
   printf 'Cursor:      %s\n' "$cursor"
   printf 'Background:  %s\n' "$background"
@@ -813,6 +865,13 @@ main() {
     kind="${1:-}"
     [[ -n "$kind" ]] || fail "current requires cursor, background, or combined"
     current_shader "$kind"
+    ;;
+
+  mode)
+    ensure_layout
+    load_state
+    shader_mode
+    printf '\n'
     ;;
 
   profile)

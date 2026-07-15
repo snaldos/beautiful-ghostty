@@ -270,7 +270,7 @@ main() {
     printf 'Backup:  %s\n' "$BACKUP_FILE"
   fi
 
-  printf 'Mode:    combined / cosmos\n'
+  printf 'Mode:    Combined shader / cosmos\n'
   printf 'Profile: quality\n'
 }
 
