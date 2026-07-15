@@ -14,6 +14,12 @@ cursor effect.
   <strong>Starflight · meteors · galaxy · geodesic black hole · cosmic cursor</strong>
 </p>
 
+<p align="center">
+  <a href="https://github.com/user-attachments/assets/71146e13-6d2b-40ab-b276-b58606345cbb">
+    <strong>Watch the full one-minute demo</strong>
+  </a>
+</p>
+
 ## Requirements
 
 - Linux
