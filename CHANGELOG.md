@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.1.0 — 2026-07-16
+
+- Add standalone background and combined `cosmos_with_foreground` variants for
+  daily terminal use.
+- Preserve the full starfield, nebula, galaxy, meteors, and black-hole disk in
+  empty regions while adaptively protecting text from bright cosmic detail.
+- Keep terminal geometry undistorted by disabling gravitational lens sampling
+  in the foreground-safe variants.
+- Reuse the existing cosmic cursor as an unobstructed foreground effect rather
+  than introducing a duplicate cursor shader.
+- Document the Ghostty opacity settings and shader controls used for foreground
+  detection and readability tuning.
+
 ## 1.0.0 — 2026-07-15
 
 - Keep perspective-star spacing and halo appearance stable across viewport

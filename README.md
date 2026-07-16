@@ -2,7 +2,8 @@
 
 A configurable cosmic shader suite for Ghostty: perspective starflight, radial
 meteors, an animated nebula and galaxy, a geodesic black hole, and a matching
-cursor effect.
+cursor effect. An optional foreground-safe variant preserves terminal geometry
+and text contrast without removing the cosmic scene.
 
 <p align="center">
   <a href="https://github.com/user-attachments/assets/71146e13-6d2b-40ab-b276-b58606345cbb">
@@ -98,7 +99,9 @@ Source and generated files are intentionally separate:
 ├── ghostty-shaders.sh
 └── shaders/
     ├── background/cosmos.glsl
+    ├── background/cosmos_with_foreground.glsl
     ├── combined/cosmos.glsl
+    ├── combined/cosmos_with_foreground.glsl
     └── cursor/cosmic.glsl
 
 ~/.config/ghostty/beautiful-ghostty/   # generated machine-local state
@@ -175,6 +178,38 @@ beautiful-ghostty set combined cosmos
 
 This disables both separate stages and uses the single combined source.
 
+### Foreground-safe Cosmos
+
+For the complete visibility-first scene and its existing cosmic cursor:
+
+```bash
+beautiful-ghostty set combined cosmos_with_foreground
+```
+
+Or pair the standalone background with the same cursor in Separate mode:
+
+```bash
+beautiful-ghostty set background cosmos_with_foreground
+beautiful-ghostty set cursor cosmic
+```
+
+This variant keeps the stars, nebula, galaxy, meteors, and black-hole disk, but
+disables screen-space gravitational lens distortion. Bright cosmic detail is
+only attenuated in a narrow, adaptive halo around glyphs; foreground pixels are
+then restored from Ghostty's untouched terminal texture. The cosmic cursor is
+unchanged and is composited afterward as a foreground effect.
+
+Foreground detection expects Ghostty's cell backgrounds to share the configured
+opacity:
+
+```ini
+background-opacity = 0.70
+background-opacity-cells = true
+```
+
+If another opacity is used, set `TERMINAL_BACKGROUND_ALPHA` in the foreground
+shader sources to the same value and rerun `./install.sh`.
+
 ### Disable a stage
 
 ```bash
@@ -195,7 +230,9 @@ Source files:
 
 ```text
 shaders/background/cosmos.glsl
+shaders/background/cosmos_with_foreground.glsl
 shaders/combined/cosmos.glsl
+shaders/combined/cosmos_with_foreground.glsl
 shaders/cursor/cosmic.glsl
 ```
 
@@ -273,6 +310,20 @@ Set `METEOR_AMOUNT` to `0.0` to disable meteors.
 Movement modes include `BH_MOTION_ORGANIC`, `BH_MOTION_FULL_SWEEP`,
 `BH_MOTION_ORBIT`, and `BH_MOTION_DIAGONAL_BOUNCE`. Appearance modes include
 `BH_LOOK_FIXED`, `BH_LOOK_SHOWCASE`, `BH_LOOK_EVOLVE`, and `BH_LOOK_DUAL`.
+
+### Foreground protection
+
+These controls exist only in the `cosmos_with_foreground` variants:
+
+| Control | Effect |
+| --- | --- |
+| `TERMINAL_BACKGROUND_ALPHA` | Must match Ghostty's `background-opacity` |
+| `TEXT_PROTECTION` | Strength of adaptive dimming near glyphs |
+| `TEXT_PROTECTION_RADIUS_PX` | Radius of the local readability halo |
+| `TEXT_PROTECTION_BRIGHTNESS_START` | Scene brightness where protection begins |
+| `TEXT_PROTECTION_BRIGHTNESS_END` | Scene brightness where protection reaches full strength |
+| `TEXT_PROTECTION_SCENE_FLOOR` | Cosmic detail retained under maximum protection |
+| `TEXT_FOREGROUND_RESTORE` | Strength of original terminal-foreground restoration |
 
 ### Cursor
 

@@ -83,26 +83,36 @@ run_install >/dev/null
 assert_file "$INSTALL_DIR/.installed-by-beautiful-ghostty"
 assert_file "$INSTALL_DIR/ghostty-shaders.sh"
 assert_file "$INSTALL_DIR/shaders/background/cosmos.glsl"
+assert_file "$INSTALL_DIR/shaders/background/cosmos_with_foreground.glsl"
 assert_file "$INSTALL_DIR/shaders/combined/cosmos.glsl"
+assert_file "$INSTALL_DIR/shaders/combined/cosmos_with_foreground.glsl"
 assert_file "$INSTALL_DIR/shaders/cursor/cosmic.glsl"
 assert_file "$COMMAND"
-[[ "$(HOME="$TEST_HOME" "$COMMAND" --version)" == 'Beautiful Ghostty 1.0.0' ]]
+[[ "$(HOME="$TEST_HOME" "$COMMAND" --version)" == 'Beautiful Ghostty 1.1.0' ]]
+[[ "$(HOME="$TEST_HOME" "$COMMAND" list background)" == $'cosmos.glsl\ncosmos_with_foreground.glsl' ]]
+[[ "$(HOME="$TEST_HOME" "$COMMAND" list combined)" == $'cosmos.glsl\ncosmos_with_foreground.glsl' ]]
 assert_file "$RUNTIME/state"
 assert_file "$RUNTIME/active.ghostty"
 [[ "$(grep -Fc '# BEGIN beautiful-ghostty' "$CONFIG")" == 1 ]]
 grep -Fq 'custom-shader = /user/owned/shader.glsl' "$CONFIG"
 [[ "$(HOME="$TEST_HOME" "$COMMAND" mode)" == combined ]]
 [[ "$(HOME="$TEST_HOME" "$COMMAND" profile)" == quality ]]
+[[ "$(HOME="$TEST_HOME" "$COMMAND" current combined)" == cosmos.glsl ]]
 mapfile -t active_paths < <(awk -F'"' '/^custom-shader =/ {print $2}' "$RUNTIME/active.ghostty")
 [[ "${#active_paths[@]}" == 1 ]]
 assert_file "${active_paths[0]}"
 [[ "$(find "$RUNTIME/generated" -maxdepth 1 -type f -name '*.glsl' | wc -l)" == 1 ]]
 
-HOME="$TEST_HOME" "$COMMAND" --no-reload set background cosmos >/dev/null
+HOME="$TEST_HOME" "$COMMAND" --no-reload set combined cosmos_with_foreground >/dev/null
+[[ "$(HOME="$TEST_HOME" "$COMMAND" current combined)" == cosmos_with_foreground.glsl ]]
+grep -Fq 'beautiful-ghostty:source=combined/cosmos_with_foreground.glsl' "$RUNTIME/generated/"*.glsl
+
+HOME="$TEST_HOME" "$COMMAND" --no-reload set background cosmos_with_foreground >/dev/null
 HOME="$TEST_HOME" "$COMMAND" --no-reload set cursor cosmic >/dev/null
 HOME="$TEST_HOME" "$COMMAND" --no-reload set-profile eco >/dev/null
 [[ "$(HOME="$TEST_HOME" "$COMMAND" mode)" == separate ]]
 [[ "$(HOME="$TEST_HOME" "$COMMAND" profile)" == eco ]]
+[[ "$(HOME="$TEST_HOME" "$COMMAND" current background)" == cosmos_with_foreground.glsl ]]
 mapfile -t active_paths < <(awk -F'"' '/^custom-shader =/ {print $2}' "$RUNTIME/active.ghostty")
 [[ "${#active_paths[@]}" == 2 ]]
 for path in "${active_paths[@]}"; do assert_file "$path"; done
