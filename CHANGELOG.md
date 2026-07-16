@@ -2,16 +2,17 @@
 
 ## 1.1.0 — 2026-07-16
 
-- Add standalone background and combined `cosmos_with_foreground` variants for
-  daily terminal use.
-- Preserve the full starfield, nebula, galaxy, meteors, and black-hole disk in
-  empty regions while adaptively protecting text from bright cosmic detail.
-- Keep terminal geometry undistorted by disabling gravitational lens sampling
-  in the foreground-safe variants.
-- Reuse the existing cosmic cursor as an unobstructed foreground effect rather
-  than introducing a duplicate cursor shader.
-- Document the Ghostty opacity settings and shader controls used for foreground
-  detection and readability tuning.
+- Add standalone background and combined `cosmos_wallpaper` variants.
+- Composite Ghostty's untouched terminal texture over Cosmos using per-pixel
+  alpha instead of detecting, recoloring, or masking terminal content.
+- Reveal the wallpaper proportionally at every opacity below `1`, while opacity
+  `1` hides the Cosmos background completely.
+- Preserve terminal geometry by disabling gravitational lens sampling in the
+  wallpaper variants.
+- Reuse the existing cosmic cursor as a foreground effect rather than adding a
+  duplicate cursor shader.
+- Document how `background-opacity-cells` controls whether explicit cell
+  backgrounds remain opaque or blend naturally with Cosmos.
 
 ## 1.0.0 — 2026-07-15
 

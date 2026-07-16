@@ -1,4 +1,4 @@
-// Beautiful Ghostty — Cosmos background with foreground protection
+// Beautiful Ghostty — Cosmos wallpaper background
 //
 // Copyright (c) 2026 Arnaldo Lopes
 // Released under the MIT License. See LICENSE.
@@ -22,7 +22,7 @@
 //   - named black-hole appearance and movement modes;
 //   - compile-time GPU quality profiles;
 //   - transparency-aware compositing;
-//   - foreground-aware protection around bright cosmic detail;
+//   - terminal-alpha compositing that leaves foreground colors untouched;
 //   - undistorted terminal geometry while the black-hole disk remains visible.
 //
 // Ghostty:
@@ -141,16 +141,6 @@
 #define BLACK_HOLE_SHADOW_ALPHA_BOOST 0.045
 #define BACKGROUND_DARKEN 1.00
 #define BACKGROUND_THRESHOLD 0.30
-// Match Ghostty's background-opacity and enable background-opacity-cells.
-#define TERMINAL_BACKGROUND_ALPHA 0.70
-#define TEXT_ALPHA_DIFFERENCE_START 0.015
-#define TEXT_ALPHA_DIFFERENCE_END 0.26
-#define TEXT_PROTECTION 0.88
-#define TEXT_PROTECTION_RADIUS_PX 1.25
-#define TEXT_PROTECTION_BRIGHTNESS_START 0.18
-#define TEXT_PROTECTION_BRIGHTNESS_END 0.58
-#define TEXT_PROTECTION_SCENE_FLOOR 0.10
-#define TEXT_FOREGROUND_RESTORE 1.00
 #define SPACE_EXPOSURE 1.00
 #define SPACE_BRIGHTNESS 1.00
 #define SPACE_SATURATION 1.00
@@ -726,17 +716,6 @@ vec3 applySaturation(vec3 color, float saturation) {
     return mix(vec3(grey), color, saturation);
 }
 
-float terminalContentMask(vec4 terminalColor) {
-    // background-opacity-cells keeps application backgrounds at the configured
-    // Ghostty opacity, while antialiased foreground glyphs rise toward alpha
-    // 1. Detect that alpha excess instead of assuming one terminal RGB color.
-    return smoothstep(
-        TEXT_ALPHA_DIFFERENCE_START,
-        TEXT_ALPHA_DIFFERENCE_END,
-        max(terminalColor.a - TERMINAL_BACKGROUND_ALPHA, 0.0)
-    );
-}
-
 float backgroundMaskFromTerminal(vec4 terminalColor) {
     float terminalLuma = luminance(terminalColor.rgb);
     float lumaMask = 1.0 - smoothstep(
@@ -748,79 +727,21 @@ float backgroundMaskFromTerminal(vec4 terminalColor) {
     return clamp(max(lumaMask, alphaMask), 0.0, 1.0);
 }
 
-float localTerminalContentMask(vec2 uv, vec4 terminalCenter) {
-    vec2 radius = vec2(TEXT_PROTECTION_RADIUS_PX)
-        / max(iResolution.xy, vec2(1.0));
-    vec2 diagonal = radius * 0.70710678;
-    float nearbyContent = 0.0;
-
-    nearbyContent = max(nearbyContent, terminalContentMask(texture(
-        iChannel0,
-        clamp(uv + vec2(radius.x, 0.0), vec2(0.0), vec2(1.0))
-    )));
-    nearbyContent = max(nearbyContent, terminalContentMask(texture(
-        iChannel0,
-        clamp(uv - vec2(radius.x, 0.0), vec2(0.0), vec2(1.0))
-    )));
-    nearbyContent = max(nearbyContent, terminalContentMask(texture(
-        iChannel0,
-        clamp(uv + vec2(0.0, radius.y), vec2(0.0), vec2(1.0))
-    )));
-    nearbyContent = max(nearbyContent, terminalContentMask(texture(
-        iChannel0,
-        clamp(uv - vec2(0.0, radius.y), vec2(0.0), vec2(1.0))
-    )));
-    nearbyContent = max(nearbyContent, terminalContentMask(texture(
-        iChannel0,
-        clamp(uv + diagonal, vec2(0.0), vec2(1.0))
-    )));
-    nearbyContent = max(nearbyContent, terminalContentMask(texture(
-        iChannel0,
-        clamp(uv - diagonal, vec2(0.0), vec2(1.0))
-    )));
-    nearbyContent = max(nearbyContent, terminalContentMask(texture(
-        iChannel0,
-        clamp(uv + vec2(diagonal.x, -diagonal.y), vec2(0.0), vec2(1.0))
-    )));
-    nearbyContent = max(nearbyContent, terminalContentMask(texture(
-        iChannel0,
-        clamp(uv + vec2(-diagonal.x, diagonal.y), vec2(0.0), vec2(1.0))
-    )));
-
-    return max(terminalContentMask(terminalCenter), nearbyContent);
-}
-
-vec4 protectTerminalReadability(
-    vec4 sceneColor,
-    vec4 terminalColor,
-    float contentMask,
-    float nearbyContentMask
+vec4 compositeCosmosBehindTerminal(
+    vec4 cosmosColor,
+    vec4 terminalColor
 ) {
-    // Only pull a bright scene toward the untouched terminal background near
-    // glyphs. Empty regions retain the full galaxy, while a narrow adaptive
-    // halo keeps bright galactic arms from washing out text edges.
-    float brightScene = smoothstep(
-        TEXT_PROTECTION_BRIGHTNESS_START,
-        TEXT_PROTECTION_BRIGHTNESS_END,
-        luminance(sceneColor.rgb)
+    // Ghostty's terminal alpha is the layer boundary: opaque foreground pixels
+    // remain byte-for-byte terminal colors, while transparent background pixels
+    // reveal the animated Cosmos layer. At terminal alpha 1, Cosmos contributes
+    // nothing. Keep the original alpha for the window compositor.
+    float terminalCoverage = clamp(terminalColor.a, 0.0, 1.0);
+    vec3 compositeColor = mix(
+        cosmosColor.rgb,
+        terminalColor.rgb,
+        terminalCoverage
     );
-    float haloProtection = clamp(
-        nearbyContentMask * brightScene * TEXT_PROTECTION,
-        0.0,
-        1.0
-    );
-    float haloMix = haloProtection
-        * (1.0 - TEXT_PROTECTION_SCENE_FLOOR);
-    sceneColor = mix(sceneColor, terminalColor, haloMix);
-
-    // Restore glyph pixels last so the galaxy, black-hole disk, and meteors
-    // cannot recolor terminal content.
-    float foregroundRestore = clamp(
-        contentMask * TEXT_FOREGROUND_RESTORE,
-        0.0,
-        1.0
-    );
-    return mix(sceneColor, terminalColor, foregroundRestore);
+    return vec4(compositeColor, terminalColor.a);
 }
 
 float localBackgroundAlpha(vec2 uv) {
@@ -2696,7 +2617,7 @@ void renderCosmosImage(out vec4 fragColor, in vec2 fragCoord) {
 }
 
 // =============================================================================
-// MAIN — FOREGROUND-PROTECTED COSMOS
+// MAIN — TERMINAL FOREGROUND OVER COSMOS
 // =============================================================================
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
@@ -2707,18 +2628,11 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         vec2(1.0)
     );
     vec4 terminalColor = texture(iChannel0, terminalUv);
-    float terminalContent = terminalContentMask(terminalColor);
-    float nearbyTerminalContent = localTerminalContentMask(
-        terminalUv,
-        terminalColor
-    );
 
     vec4 cosmosColor;
     renderCosmosImage(cosmosColor, fragCoord);
-    fragColor = protectTerminalReadability(
+    fragColor = compositeCosmosBehindTerminal(
         cosmosColor,
-        terminalColor,
-        terminalContent,
-        nearbyTerminalContent
+        terminalColor
     );
 }
